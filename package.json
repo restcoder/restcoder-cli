@@ -1,0 +1,36 @@
+{
+  "name": "restskill-cli",
+  "version": "1.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "restskill": "bin/restskill"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lsentkiewicz/restskill-cli.git"
+  },
+  "author": "restskill",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lsentkiewicz/restskill-cli/issues"
+  },
+  "homepage": "https://github.com/lsentkiewicz/restskill-cli#readme",
+  "dependencies": {
+    "adm-zip": "^0.4.7",
+    "co": "^4.6.0",
+    "commander": "^2.9.0",
+    "ignore": "^2.2.19",
+    "ini": "^1.3.4",
+    "mkdirp": "^0.5.1",
+    "node-status": "^0.1.6",
+    "prompt": "^0.2.14",
+    "superagent": "^1.6.1",
+    "superagent-promise": "^1.1.0",
+    "underscore": "^1.8.3",
+    "update-notifier": "^0.6.0"
+  }
+}

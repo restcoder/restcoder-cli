@@ -1,0 +1,110 @@
+#!/usr/bin/env node
+'use strict';
+
+process.bin = process.title = 'restskill';
+
+var prompt = require('prompt');
+var co = require('co');
+var updateNotifier = require('update-notifier');
+var pkg = require("../package.json");
+var program = require('commander');
+var _ = require('underscore');
+
+var ConfigService = require("../services/ConfigService");
+var CodeService = require("../services/CodeService");
+
+var supportedPlatforms = ["nodejs"];
+prompt.message = "";
+prompt.delimiter = "";
+
+function _checkLoggedIn() {
+    if (!ConfigService.isAuthenticated()) {
+        throw new Error("Your are not authenticated. Please use 'login' command.");
+    }
+}
+
+function _wrapCommand(fn) {
+    return function () {
+        var args = arguments;
+        co(function* () {
+            var binded = Function.prototype.bind.apply(fn, _.flatten([null, args]));
+            yield binded();
+            process.exit(0);
+        }).catch(e => {
+            console.log("ERR!".red, e.message);
+            process.exit(1);
+        });
+    };
+}
+
+program
+    .version(pkg.version)
+    .command('init <platform> <problemId>')
+    .description('init source code in current directory')
+    .action(_wrapCommand(function* (platform, problemId) {
+        //_checkLoggedIn();
+        console.log("Initializing source code...");
+        yield CodeService.initCode(process.cwd(), problemId, platform);
+        console.log("SUCCESS!".green);
+    }));
+
+program
+    .command('submit')
+    .description('Submit your source code and test your solution')
+    .action(_wrapCommand(function* () {
+        console.log("Submitting source code...");
+        yield CodeService.submit(process.cwd());
+    }));
+
+
+program
+    .command('login')
+    .description('login with your username and password')
+    .action(_wrapCommand(function* () {
+        var params = [{
+            name: 'username',
+            description: 'Your username:',
+            required: true
+        }, {
+            name: 'password',
+            description: 'Your password:',
+            hidden: true,
+            required: true
+        }];
+        
+        var bindedPrompt = prompt.get.bind(prompt, params);
+        var result;
+        try {
+            result = yield bindedPrompt;
+        } catch (err) {
+            if (err.message === "canceled") {
+                process.exit();
+            } else {
+                throw err;
+            }
+        }
+        console.log('Command-line input received:');
+        console.log('  username: ' + result.username);
+        console.log('  password: ' + result.password);
+        var settings = ConfigService.getSettings();
+        settings.user = {
+            username: result.username,
+            token: "akdjfjfdjn"
+        };
+        ConfigService.updateSettings(settings);
+    }));
+
+
+//unknown command
+//display help
+program.action(function () {
+    program.outputHelp();
+});
+
+program.parse(process.argv);
+if (process.argv.length === 2) {
+    program.outputHelp();
+}
+
+//check for update
+updateNotifier({pkg, updateCheckInterval: 0}).notify();

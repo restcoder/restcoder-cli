@@ -1,0 +1,11 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "dependencies": {
+    "adm-zip": "^0.4.7",
+    "dotenv": "^1.2.0",
+    "express": "^4.13.3"
+  }
+}
