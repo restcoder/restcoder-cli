@@ -1,8 +1,14 @@
 'use strict';
 
-var baseUrl = "http://localhost:3500";
+const baseUrl = "http://localhost:3500";
+const request = require('superagent-promise')(require('superagent'), Promise);
+const ConfigService = require("./ConfigService");
 
-var request = require('superagent-promise')(require('superagent'), Promise);
+module.exports = {
+    getCodeTemplate,
+    login,
+    submitCode
+};
 
 function* _wrap(req) {
     try {
@@ -15,11 +21,23 @@ function* _wrap(req) {
     }
 }
 
-function* getCodeTemplate(problemId, platform) {
-    var res = yield _wrap(request.get(`${baseUrl}/cli-api/v1/problems/${problemId}/code-templates/${platform}`));
+function* login(username, password) {
+    var res = yield _wrap(request.post(`${baseUrl}/api/v1/login`).send({username, password}));
     return res.body;
 }
 
-module.exports = {
-    getCodeTemplate
-};
+
+function* getCodeTemplate(language) {
+    var res = yield _wrap(request.get(`${baseUrl}/cli-api/v1/code-templates/${language}`));
+    return res.body;
+}
+
+function* submitCode(problemId, submission, file) {
+    var req = request
+        .post(`${baseUrl}/cli-api/v1/problems/${problemId}/submit`)
+        .set("Authentication", `Bearer ${ConfigService.getToken()}`)
+        .attach('file', file)
+        .field('submission', JSON.stringify(submission));
+    var res = yield _wrap(req);
+    return res.body;
+}

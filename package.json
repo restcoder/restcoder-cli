@@ -1,24 +1,24 @@
 {
-  "name": "restskill-cli",
-  "version": "1.0.1",
+  "name": "restcoder-cli",
+  "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "restskill": "bin/restskill"
+    "restcoder": "bin/restcoder"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lsentkiewicz/restskill-cli.git"
+    "url": "git+https://github.com/restcoder/restcoder-cli.git"
   },
   "author": "restskill",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/lsentkiewicz/restskill-cli/issues"
+    "url": "https://github.com/restcoder/restcoder-cli/issues"
   },
-  "homepage": "https://github.com/lsentkiewicz/restskill-cli#readme",
+  "homepage": "https://github.com/restcoder/restcoder-cli#readme",
   "dependencies": {
     "adm-zip": "^0.4.7",
     "co": "^4.6.0",

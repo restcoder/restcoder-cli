@@ -4,7 +4,14 @@
 var ini = require('ini');
 var fs = require('fs');
 var Path = require('path');
-var rcPath = Path.join(process.env.HOME || process.env.USERPROFILE, ".restskillrc");
+var rcPath = Path.join(process.env.HOME || process.env.USERPROFILE, ".restcoderrc");
+
+module.exports = {
+    getSettings,
+    updateSettings,
+    isAuthenticated,
+    getToken
+};
 
 function getSettings() {
     try {
@@ -23,8 +30,7 @@ function isAuthenticated() {
     return settings.user && settings.user.username && settings.user.password;
 }
 
-module.exports = {
-    getSettings,
-    updateSettings,
-    isAuthenticated
-};
+function getToken() {
+    var settings = getSettings();
+    return settings.user.password;
+}

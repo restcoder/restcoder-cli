@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-process.bin = process.title = 'restskill';
+process.bin = process.title = 'restcoder';
 
 var prompt = require('prompt');
 var co = require('co');
@@ -12,6 +12,7 @@ var _ = require('underscore');
 
 var ConfigService = require("../services/ConfigService");
 var CodeService = require("../services/CodeService");
+var APIService = require("../services/APIService");
 
 var supportedPlatforms = ["nodejs"];
 prompt.message = "";
@@ -19,7 +20,7 @@ prompt.delimiter = "";
 
 function _checkLoggedIn() {
     if (!ConfigService.isAuthenticated()) {
-        throw new Error("Your are not authenticated. Please use 'login' command.");
+        throw new Error("Your are not authenticated. Please use the 'login' command.");
     }
 }
 
@@ -32,6 +33,7 @@ function _wrapCommand(fn) {
             process.exit(0);
         }).catch(e => {
             console.log("ERR!".red, e.message);
+            console.log(e.stack);
             process.exit(1);
         });
     };
@@ -39,12 +41,12 @@ function _wrapCommand(fn) {
 
 program
     .version(pkg.version)
-    .command('init <platform> <problemId>')
+    .command('init <language> <problemId>')
     .description('init source code in current directory')
-    .action(_wrapCommand(function* (platform, problemId) {
+    .action(_wrapCommand(function* (language, problemId) {
         //_checkLoggedIn();
         console.log("Initializing source code...");
-        yield CodeService.initCode(process.cwd(), problemId, platform);
+        yield CodeService.initCode(process.cwd(), problemId, language);
         console.log("SUCCESS!".green);
     }));
 
@@ -83,15 +85,14 @@ program
                 throw err;
             }
         }
-        console.log('Command-line input received:');
-        console.log('  username: ' + result.username);
-        console.log('  password: ' + result.password);
+        var data = yield APIService.login(result.username, result.password);
         var settings = ConfigService.getSettings();
         settings.user = {
             username: result.username,
-            token: "akdjfjfdjn"
+            token: data.token
         };
         ConfigService.updateSettings(settings);
+        console.log("Authenticated successfully");
     }));
 
 

@@ -25,35 +25,38 @@ function _getFiles(dir, currentFiles){
     return currentFiles;
 }
 
-function* initCode(directory, problemId, platform) {
+function* initCode(directory, problemId, language) {
     var items = fs.readdirSync(directory);
     if (items.length) {
         throw new Error("Directory is not empty!");
     }
-    var result = yield ApiService.getCodeTemplate(problemId, platform);
+    var result = yield ApiService.getCodeTemplate(language);
     _.each(result.files, file => {
         var fullPath = Path.join(directory, file.path);
         mkdirp.sync(Path.dirname(fullPath));
         fs.writeFileSync(fullPath, file.content, 'utf8');
     });
-    var codeConfig = {problemId: problemId, platform: platform};
-    fs.writeFileSync(Path.join(directory, ".restskillrc"), JSON.stringify(codeConfig, null, 4), 'utf8');
+    var codeConfig = {problemId, language};
+    fs.writeFileSync(Path.join(directory, ".restcoderrc"), JSON.stringify(codeConfig, null, 4), 'utf8');
 }
 
 function* submit(directory) {
     var codeConfig;
     try {
-        codeConfig = fs.readFileSync(Path.join(directory, ".restskillrc"), 'utf8');
+        codeConfig = fs.readFileSync(Path.join(directory, ".restcoderrc"), 'utf8');
     } catch (ignore) {
-        throw new Error("Invalid directory. File .restskillrc is missing.");
+        throw new Error("Invalid directory. File .restcoderrc is missing.");
     }
     try {
         codeConfig = JSON.parse(codeConfig);
     } catch (ignore) {
-        throw new Error("File .restskillrc is malformed.");
+        throw new Error("File .restcoderrc is malformed.");
     }
     if (!codeConfig.problemId) {
-        throw new Error("File .restskillrc is malformed. The problemId property is missing.");
+        throw new Error("File .restcoderrc is malformed. The problemId property is missing.");
+    }
+    if (!codeConfig.language) {
+        throw new Error("File .restcoderrc is malformed. The language property is missing.");
     }
     var ignoreFile= "";
     try {
@@ -79,8 +82,62 @@ function* submit(directory) {
         }
         zip.addFile(relativePath, fs.readFileSync(fullPath));
     });
-    zip.writeZip(__dirname + "/../tmp/files.zip");
+
+    var submission = {
+        language: {
+            name: codeConfig.language,
+            version: detectVersion(codeConfig.language, directory)
+        },
+        processes: parseProcfile(directory)
+    };
+    yield ApiService.submitCode(codeConfig.problemId, submission, zip.toBuffer());
 }
+
+function parseProcfile(directory) {
+    var procfile;
+    try {
+        procfile = fs.readFileSync(Path.join(directory, "Procfile"), 'utf8');
+    } catch (ignore) {
+        throw new Error("Procfile is missing!");
+    }
+    var processes = [];
+    procfile.split("\n", line => {
+        line = line.trim();
+        if (!line) {
+            return;
+        }
+        var split = line.split(":");
+        var name = split.shift();
+        var command = split.join(":");
+        processes.push({name, command});
+    });
+    return processes;
+}
+
+function detectVersion(language, directory) {
+    switch (language) {
+        case "nodejs":
+            let packagejs;
+            try {
+                packagejs = fs.readFileSync(Path.join(directory, "package.json"), 'utf8');
+            } catch (ignore) {
+                throw new Error("package.json is missing!");
+            }
+            try {
+                packagejs = JSON.parse(packagejs);
+            } catch (ignore) {
+                throw new Error("Cannot package.json. Invalid JSON object.");
+            }
+            if (packagejs.engines && packagejs.engines.node) {
+                return packagejs.engines.node;
+            }
+            console.log("WARN!".orange, "nodejs version is not defined in package.json. Latest version will be used.");
+            return "*";
+        default:
+            throw new Error("Unsupported language: " + language);
+    }
+}
+
 
 module.exports = {
     initCode,
