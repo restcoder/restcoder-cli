@@ -1,14 +1,18 @@
 'use strict';
 
-var _ = require("underscore");
-var fs = require('fs');
-var Path = require('path');
-var ApiService = require("./APIService");
-var mkdirp = require('mkdirp');
-var ignore = require('ignore');
-var AdmZip = require('adm-zip');
-var MAX_FILES = 100;
-var MAX_FILE_SIZE_KB = 200;
+const _ = require("underscore");
+const fs = require('fs');
+const Path = require('path');
+const mkdirp = require('mkdirp');
+const ignore = require('ignore');
+const AdmZip = require('adm-zip');
+const io = require('socket.io-client');
+const ApiService = require("./APIService");
+const ConfigService = require("../services/ConfigService");
+
+const SOCKET_URL = "http://localhost:3500/cli";
+const MAX_FILES = 100;
+const MAX_FILE_SIZE_KB = 200;
 
 
 function _getFiles(dir, currentFiles){
@@ -58,9 +62,12 @@ function* submit(directory) {
     if (!codeConfig.language) {
         throw new Error("File .restcoderrc is malformed. The language property is missing.");
     }
+    var version = detectVersion(codeConfig.language, directory);
+    var processes = parseProcfile(directory);
+    console.log("Packing source code...");
     var ignoreFile= "";
     try {
-        ignoreFile = fs.readFileSync(Path.join(directory, ".restskill_ignore"), 'utf8');
+        ignoreFile = fs.readFileSync(Path.join(directory, ".restcoderignore"), 'utf8');
     } catch (ignore) {
         
     }
@@ -82,15 +89,102 @@ function* submit(directory) {
         }
         zip.addFile(relativePath, fs.readFileSync(fullPath));
     });
+    console.log(_fixMessageColors("Packing source code... Success"));
 
     var submission = {
         language: {
             name: codeConfig.language,
-            version: detectVersion(codeConfig.language, directory)
+            version: version
         },
-        processes: parseProcfile(directory)
+        processes: processes
     };
-    yield ApiService.submitCode(codeConfig.problemId, submission, zip.toBuffer());
+
+    console.log("Submitting source code...");
+    var result = yield ApiService.submitCode(codeConfig.problemId, submission, zip.toBuffer());
+    console.log(_fixMessageColors("Submitting source code... Success"));
+
+    console.log("Waiting for tester...");
+    var prefix = "tester: ".cyan;
+
+    yield new Promise(function (resolve) {
+        var socket = io(SOCKET_URL + "?token=" + ConfigService.getToken());
+        socket.on("connect", function () {
+            socket.emit("join", {submissionId: result.submissionId});
+        });
+
+        socket.on("progress", function (data) {
+            switch(data.type) {
+                case "PREPARING":
+                    console.log(prefix + "Preparing...");
+                    break;
+                case "INSTALL":
+                    console.log(prefix + "Installing dependencies...");
+                    break;
+                case "INSTALL_OK":
+                    console.log(prefix + _fixMessageColors("Installing dependencies... Success"));
+                    break;
+                case "INSTALL_LOG":
+                    //TODO
+                    break;
+                case "READY":
+                    console.log(prefix + "Starting apps. Waiting for 'READY'...");
+                    break;
+                case "READY_OK":
+                    console.log(prefix + _fixMessageColors("Starting apps. Waiting for 'READY'... Success"));
+                    break;
+                case "READY_TIMEOUT":
+                    console.log(prefix + "Timeout! Your application didn't write READY to stdout.".red);
+                    console.log(prefix + "Result: " + "FAIL".red);
+                    resolve();
+                    break;
+                case "BEFORE_START":
+                    console.log(prefix + "Initializing unit tests...");
+                    break;
+                case "START":
+                    console.log(prefix + `Running ${data.totalTests.toString().cyan} test(s)`);
+                    break;
+                case "TEST_RESULT":
+                    var test = data.data;
+                    switch (test.result) {
+                        case "PENDING":
+                            console.log(prefix + test.name +  ": running...");
+                            break;
+                        case "FAIL":
+                            console.log(prefix + test.name +  ": " + "FAIL".red);
+                            console.log(prefix + `Reason: ${test.userErrorMessage}`.red);
+                            break;
+                        case "PASS":
+                            console.log(prefix + test.name +  ": " + "PASS".green);
+                            break;
+                    }
+                    break;
+                case "OPERATION_ERROR":
+                    console.log(prefix + (`Error: ${data.msg} (ref: ${data.referId})`).red);
+                    if (data.stdout) {
+                        console.log(prefix + `See stdout log: ` + data.stdout);
+                    }
+                    if (data.stderr) {
+                        console.log(prefix + `See stderr log: ` + data.stderr);
+                    }
+                    resolve();
+                    break;
+                case "ERROR":
+                    console.log(prefix + (`Internal Server Error (ref: ${data.referId})`).red);
+                    resolve();
+                    break;
+                case "END":
+                    console.log(prefix + "Result: " + (data.passed ? "PASS".green : "FAIL".red));
+                    resolve();
+                    break;
+            }
+        });
+    });
+}
+
+
+function _fixMessageColors(msg) {
+    msg = msg.replace("Success", "Success".green);
+    return msg;
 }
 
 function parseProcfile(directory) {
@@ -101,7 +195,7 @@ function parseProcfile(directory) {
         throw new Error("Procfile is missing!");
     }
     var processes = [];
-    procfile.split("\n", line => {
+    procfile.split("\n").forEach(line => {
         line = line.trim();
         if (!line) {
             return;
@@ -111,6 +205,9 @@ function parseProcfile(directory) {
         var command = split.join(":");
         processes.push({name, command});
     });
+    if (!processes.length) {
+        throw new Error("Procfile is empty");
+    }
     return processes;
 }
 
@@ -126,12 +223,12 @@ function detectVersion(language, directory) {
             try {
                 packagejs = JSON.parse(packagejs);
             } catch (ignore) {
-                throw new Error("Cannot package.json. Invalid JSON object.");
+                throw new Error("Cannot parse package.json. Invalid JSON object.");
             }
             if (packagejs.engines && packagejs.engines.node) {
                 return packagejs.engines.node;
             }
-            console.log("WARN!".orange, "nodejs version is not defined in package.json. Latest version will be used.");
+            console.log("WARN!".yellow, "nodejs version is not defined in package.json. Latest version will be used.");
             return "*";
         default:
             throw new Error("Unsupported language: " + language);

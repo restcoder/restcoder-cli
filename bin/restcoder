@@ -9,14 +9,23 @@ var updateNotifier = require('update-notifier');
 var pkg = require("../package.json");
 var program = require('commander');
 var _ = require('underscore');
-
+var inquirer = require("inquirer");
 var ConfigService = require("../services/ConfigService");
 var CodeService = require("../services/CodeService");
 var APIService = require("../services/APIService");
 
-var supportedPlatforms = ["nodejs"];
+var supportedPlatforms = ["nodejs", "python", "ruby", "java"];
 prompt.message = "";
 prompt.delimiter = "";
+
+
+function _prompt(questions) {
+    return new Promise((resolve) => {
+        inquirer.prompt(questions, function(answers) {
+            resolve(answers);
+        });
+    });
+}
 
 function _checkLoggedIn() {
     if (!ConfigService.isAuthenticated()) {
@@ -41,11 +50,23 @@ function _wrapCommand(fn) {
 
 program
     .version(pkg.version)
-    .command('init <language> <problemId>')
+    .command('init <problemId>')
     .description('init source code in current directory')
-    .action(_wrapCommand(function* (language, problemId) {
-        //_checkLoggedIn();
+    .action(_wrapCommand(function* (problemId) {
+        _checkLoggedIn();
         console.log("Initializing source code...");
+
+        var settings = ConfigService.getSettings();
+        var answers = yield _prompt([{
+            type: "list",
+            name: "language",
+            default: settings.defaultLanguage,
+            message: "Choose language",
+            choices: supportedPlatforms
+        }]);
+        var language = answers.language;
+        settings.defaultLanguage = language;
+        ConfigService.updateSettings(settings);
         yield CodeService.initCode(process.cwd(), problemId, language);
         console.log("SUCCESS!".green);
     }));
@@ -54,7 +75,7 @@ program
     .command('submit')
     .description('Submit your source code and test your solution')
     .action(_wrapCommand(function* () {
-        console.log("Submitting source code...");
+        _checkLoggedIn();
         yield CodeService.submit(process.cwd());
     }));
 

@@ -27,10 +27,10 @@ function updateSettings(settings) {
 
 function isAuthenticated() {
     var settings = getSettings();
-    return settings.user && settings.user.username && settings.user.password;
+    return settings.user && settings.user.username && settings.user.token;
 }
 
 function getToken() {
     var settings = getSettings();
-    return settings.user.password;
+    return settings.user.token;
 }
