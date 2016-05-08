@@ -102,6 +102,9 @@ function* submit(directory) {
     console.log("Submitting source code...");
     var result = yield ApiService.submitCode(codeConfig.problemId, submission, zip.toBuffer());
     console.log(_fixMessageColors("Submitting source code... Success"));
+    console.log(('Problem: '.bold + result.problemName).yellow);
+    console.log(('Language: '.bold + result.language + '@' + result.languageVersion).yellow);
+    console.log(('Services: '.bold + result.usedServices).yellow);
 
     console.log("Waiting for tester...");
     var prefix = "tester: ".cyan;
