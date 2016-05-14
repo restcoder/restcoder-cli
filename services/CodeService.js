@@ -215,6 +215,7 @@ function parseProcfile(directory) {
 }
 
 function detectVersion(language, directory) {
+    let exec;
     switch (language) {
         case "nodejs":
             let packagejs;
@@ -233,6 +234,34 @@ function detectVersion(language, directory) {
             }
             console.log("WARN!".yellow, "nodejs version is not defined in package.json. Latest version will be used.");
             return "*";
+      case "ruby":
+        let gemfile;
+        try {
+          gemfile = fs.readFileSync(Path.join(directory, "gemfile"), 'utf8');
+        } catch (ignore) {
+          throw new Error("Gemfile is missing!");
+        }
+        exec = /^ruby '(.+?)'/m.exec(gemfile);
+        if (exec) {
+          return exec[1];
+        } else {
+          console.log("WARN!".yellow, "ruby version is not defined in Gemfile. Latest version will be used.");
+        }
+        return "*";
+      case "python":
+        let runtime;
+        try {
+          runtime = fs.readFileSync(Path.join(directory, "runtime.txt"), 'utf8');
+        } catch (ignore) {
+          throw new Error("runtime.txt!");
+        }
+        exec = /^python-(.+?)$/m.exec(runtime);
+        if (exec) {
+          return exec[1];
+        } else {
+          console.log("WARN!".yellow, "python version is not defined in runtime.txt. 2.7 version will be used.");
+        }
+        return "2.7";
         default:
             throw new Error("Unsupported language: " + language);
     }
