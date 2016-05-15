@@ -253,7 +253,7 @@ function detectVersion(language, directory) {
         try {
           runtime = fs.readFileSync(Path.join(directory, "runtime.txt"), 'utf8');
         } catch (ignore) {
-          throw new Error("runtime.txt!");
+          throw new Error("runtime.txt is missing!");
         }
         exec = /^python-(.+?)$/m.exec(runtime);
         if (exec) {
@@ -262,6 +262,20 @@ function detectVersion(language, directory) {
           console.log("WARN!".yellow, "python version is not defined in runtime.txt. 2.7 version will be used.");
         }
         return "2.7";
+      case "java":
+        let properties;
+        try {
+          properties = fs.readFileSync(Path.join(directory, "system.properties"), 'utf8');
+        } catch (ignore) {
+          throw new Error("system.properties is missing!");
+        }
+        exec = /^java\.runtime\.version=(.+?)$/m.exec(properties);
+        if (exec) {
+          return exec[1];
+        } else {
+          console.log("WARN!".yellow, "java version is not defined in system.properties. 1.8 version will be used.");
+        }
+        return "1.8";
         default:
             throw new Error("Unsupported language: " + language);
     }
