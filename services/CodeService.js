@@ -276,6 +276,8 @@ function detectVersion(language, directory) {
           console.log("WARN!".yellow, "java version is not defined in system.properties. 1.8 version will be used.");
         }
         return "1.8";
+      case "dotnet":
+        return '*';
         default:
             throw new Error("Unsupported language: " + language);
     }

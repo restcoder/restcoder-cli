@@ -14,7 +14,15 @@ var ConfigService = require("../services/ConfigService");
 var CodeService = require("../services/CodeService");
 var APIService = require("../services/APIService");
 
-var supportedPlatforms = ["nodejs", "python", "ruby", "java"];
+var supportedPlatforms = ["Node.js", "Python", "Ruby", "Java", '.NET'];
+var langMap = {
+  'Node.js': 'nodejs',
+  'Python': 'python',
+  'Ruby': 'ruby',
+  'Java': 'java',
+  '.NET': 'dotnet',
+};
+
 prompt.message = "";
 prompt.delimiter = "";
 
@@ -64,7 +72,7 @@ program
             message: "Choose language",
             choices: supportedPlatforms
         }]);
-        var language = answers.language;
+        var language = langMap[answers.language];
         settings.defaultLanguage = language;
         ConfigService.updateSettings(settings);
         yield CodeService.initCode(process.cwd(), problemId, language);
