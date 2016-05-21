@@ -14,127 +14,147 @@ var ConfigService = require("../services/ConfigService");
 var CodeService = require("../services/CodeService");
 var APIService = require("../services/APIService");
 
-var supportedPlatforms = ["Node.js", "Python", "Ruby", "Java", '.NET'];
-var langMap = {
-  'Node.js': 'nodejs',
-  'Python': 'python',
-  'Ruby': 'ruby',
-  'Java': 'java',
-  '.NET': 'dotnet',
-};
+const supportedPlatforms = [
+  {name: 'Node.js', value: 'nodejs'},
+  {name: 'Python', value: 'python'},
+  {name: 'Ruby', value: 'ruby'},
+  {name: 'Java', value: 'java'},
+  {name: '.NET', value: 'dotnet'},
+];
 
 prompt.message = "";
 prompt.delimiter = "";
 
 
 function _prompt(questions) {
-    return new Promise((resolve) => {
-        inquirer.prompt(questions, function(answers) {
-            resolve(answers);
-        });
+  return new Promise((resolve) => {
+    inquirer.prompt(questions, function (answers) {
+      resolve(answers);
     });
+  });
 }
 
 function _checkLoggedIn() {
-    if (!ConfigService.isAuthenticated()) {
-        throw new Error("Your are not authenticated. Please use the 'login' command.");
-    }
+  if (!ConfigService.isAuthenticated()) {
+    throw new Error("Your are not authenticated. Please use the 'login' command.");
+  }
 }
 
 function _wrapCommand(fn) {
-    return function () {
-        var args = arguments;
-        co(function* () {
-            var binded = Function.prototype.bind.apply(fn, _.flatten([null, args]));
-            yield binded();
-            process.exit(0);
-        }).catch(e => {
-            console.log("ERR!".red, e.message);
-            console.log(e.stack);
-            process.exit(1);
-        });
-    };
+  return function () {
+    var args = arguments;
+    co(function*() {
+      var binded = Function.prototype.bind.apply(fn, _.flatten([null, args]));
+      yield binded();
+      process.exit(0);
+    }).catch(e => {
+      console.log("ERR!".red, e.message);
+      console.log(e.stack);
+      process.exit(1);
+    });
+  };
 }
 
 program
-    .version(pkg.version)
-    .command('init <problemId>')
-    .description('init source code in current directory')
-    .action(_wrapCommand(function* (problemId) {
-        _checkLoggedIn();
-        console.log("Initializing source code...");
+  .version(pkg.version)
+  .command('init <problemId>')
+  .description('init source code in current directory')
+  .action(_wrapCommand(function*(problemId) {
+    _checkLoggedIn();
+    console.log("Initializing source code...");
+    const problem = yield APIService.getProblem(problemId);
 
-        var settings = ConfigService.getSettings();
-        var answers = yield _prompt([{
+    var settings = ConfigService.getSettings();
+    var answers = yield _prompt([{
+      type: "list",
+      name: "language",
+      default: settings.defaultLanguage,
+      message: "Choose language",
+      choices: supportedPlatforms
+    }]);
+    var language = answers.language;
+    settings.defaultLanguage = answers.language;
+    ConfigService.updateSettings(settings);
+    const selectServices = problem.runtime.services.select;
+    const pickedServices = {};
+    if (selectServices) {
+      const services = yield APIService.getServices();
+      const servicesMap = _.indexBy(services, 'id');
+      yield _.map(selectServices, (value, name) => function* () {
+        if (_.isArray(value)) {
+          var serviceAnswer = yield _prompt([{
             type: "list",
-            name: "language",
-            default: settings.defaultLanguage,
-            message: "Choose language",
-            choices: supportedPlatforms
-        }]);
-        var language = langMap[answers.language];
-        settings.defaultLanguage = language;
-        ConfigService.updateSettings(settings);
-        yield CodeService.initCode(process.cwd(), problemId, language);
-        console.log("SUCCESS!".green);
-    }));
-
-program
-    .command('submit')
-    .description('Submit your source code and test your solution')
-    .action(_wrapCommand(function* () {
-        _checkLoggedIn();
-        yield CodeService.submit(process.cwd());
-    }));
-
-
-program
-    .command('login')
-    .description('login with your username and password')
-    .action(_wrapCommand(function* () {
-        var params = [{
-            name: 'username',
-            description: 'Your username:',
-            required: true
-        }, {
-            name: 'password',
-            description: 'Your password:',
-            hidden: true,
-            required: true
-        }];
-        
-        var bindedPrompt = prompt.get.bind(prompt, params);
-        var result;
-        try {
-            result = yield bindedPrompt;
-        } catch (err) {
-            if (err.message === "canceled") {
-                process.exit();
-            } else {
-                throw err;
-            }
+            name: "result",
+            message: "Choose " + name,
+            choices: value.map((item) => ({
+              name: `${servicesMap[item].description} (${servicesMap[item].version})`,
+              value: item
+            }))
+          }]);
+          pickedServices[name] = serviceAnswer.result;
         }
-        var data = yield APIService.login(result.username, result.password);
-        var settings = ConfigService.getSettings();
-        settings.user = {
-            username: result.username,
-            token: data.token
-        };
-        ConfigService.updateSettings(settings);
-        console.log("Authenticated successfully");
-    }));
+      });
+    }
+    yield CodeService.initCode(process.cwd(), problemId, language, pickedServices);
+    console.log("SUCCESS!".green);
+  }));
+
+program
+  .command('submit')
+  .description('Submit your source code and test your solution')
+  .action(_wrapCommand(function*() {
+    _checkLoggedIn();
+    yield CodeService.submit(process.cwd());
+  }));
+
+
+program
+  .command('login')
+  .description('login with your username and password')
+  .action(_wrapCommand(function*() {
+    var params = [{
+      name: 'username',
+      description: 'Your username:',
+      required: true
+    }, {
+      name: 'password',
+      description: 'Your password:',
+      hidden: true,
+      required: true
+    }];
+
+    var bindedPrompt = prompt.get.bind(prompt, params);
+    var result;
+    try {
+      result = yield bindedPrompt;
+    } catch (err) {
+      if (err.message === "canceled") {
+        process.exit();
+      } else {
+        throw err;
+      }
+    }
+    var data = yield APIService.login(result.username, result.password);
+    var settings = ConfigService.getSettings();
+    settings.user = {
+      username: result.username,
+      token: data.token
+    };
+    ConfigService.updateSettings(settings);
+    console.log("Authenticated successfully");
+  }));
 
 
 //unknown command
 //display help
 program.action(function () {
-    program.outputHelp();
+  program.outputHelp();
 });
 
 program.parse(process.argv);
 if (process.argv.length === 2) {
-    program.outputHelp();
+  program.outputHelp();
 }
 
 //check for update
-updateNotifier({pkg, updateCheckInterval: 0}).notify();
+updateNotifier({ pkg, updateCheckInterval: 0 }).notify();
