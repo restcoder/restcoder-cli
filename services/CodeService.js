@@ -10,7 +10,7 @@ const io = require('socket.io-client');
 const ApiService = require("./APIService");
 const ConfigService = require("../services/ConfigService");
 
-const SOCKET_URL = "http://localhost:3500/cli";
+const SOCKET_URL = process.env.RESTCODER_CLI_LOCAL_MODE ? "http://localhost:3500/cli" : 'http://api.restcoder.com/cli';
 const MAX_FILES = 100;
 const MAX_FILE_SIZE_KB = 200;
 

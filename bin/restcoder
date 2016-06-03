@@ -49,7 +49,9 @@ function _wrapCommand(fn) {
       process.exit(0);
     }).catch(e => {
       console.log("ERR!".red, e.message);
-      console.log(e.stack);
+      if (process.env.RESTCODER_CLI_LOCAL_MODE) {
+        console.log(e.stack);
+      }
       process.exit(1);
     });
   };
