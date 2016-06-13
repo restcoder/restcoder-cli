@@ -9,11 +9,32 @@ const AdmZip = require('adm-zip');
 const io = require('socket.io-client');
 const ApiService = require("./APIService");
 const ConfigService = require("../services/ConfigService");
+const helper = require('./helper');
 
 const SOCKET_URL = process.env.RESTCODER_CLI_LOCAL_MODE ? "http://localhost:3500/cli" : 'https://api.restcoder.com/cli';
 const MAX_FILES = 100;
-const MAX_FILE_SIZE_KB = 200;
+const MAX_FILE_SIZE_KB = 100;
 
+
+const supportedPlatforms = [
+  {name: 'Node.js', value: 'nodejs'},
+  {name: 'Python', value: 'python'},
+  {name: 'Ruby', value: 'ruby'},
+  {name: 'Java', value: 'java'},
+  {name: '.NET', value: 'dotnet'},
+];
+
+prompt.message = "";
+prompt.delimiter = "";
+
+
+function _prompt(questions) {
+  return new Promise((resolve) => {
+    inquirer.prompt(questions, function (answers) {
+      resolve(answers);
+    });
+  });
+}
 
 function _getFiles(dir, currentFiles) {
   currentFiles = currentFiles || [];
@@ -29,11 +50,51 @@ function _getFiles(dir, currentFiles) {
   return currentFiles;
 }
 
-function* initCode(directory, problemId, language, services) {
+function* initCode(directory, problemId) {
+  if (!fs.existsSync(directory)){
+    fs.mkdirSync(directory);
+  }
   var items = fs.readdirSync(directory);
   if (items.length) {
     throw new Error("Directory is not empty!");
   }
+
+  console.log("Initializing source code...");
+  const problem = yield APIService.getProblem(problemId);
+
+  var settings = ConfigService.getSettings();
+  var answers = yield _prompt([{
+    type: "list",
+    name: "language",
+    default: settings.defaultLanguage,
+    message: "Choose language",
+    choices: supportedPlatforms
+  }]);
+  
+  var language = answers.language;
+  settings.defaultLanguage = answers.language;
+  ConfigService.updateSettings(settings);
+  const selectServices = problem.runtime.services.select;
+  const pickedServices = {};
+  if (selectServices) {
+    const services = yield APIService.getServices();
+    const servicesMap = _.indexBy(services, 'id');
+    yield _.map(selectServices, (value, name) => function* () {
+      if (_.isArray(value)) {
+        var serviceAnswer = yield _prompt([{
+          type: "list",
+          name: "result",
+          message: "Choose " + name,
+          choices: value.map((item) => ({
+            name: `${servicesMap[item].description} (${servicesMap[item].version})`,
+            value: item
+          }))
+        }]);
+        pickedServices[name] = serviceAnswer.result;
+      }
+    });
+  }
+  
   var result = yield ApiService.getCodeTemplate(language);
   _.each(result.files, file => {
     var fullPath = Path.join(directory, file.path);
@@ -42,6 +103,8 @@ function* initCode(directory, problemId, language, services) {
   });
   var codeConfig = { problemId, language, services };
   fs.writeFileSync(Path.join(directory, ".restcoderrc"), JSON.stringify(codeConfig, null, 4), 'utf8');
+
+  console.log("SUCCESS!".green);
 }
 
 function* submit(directory) {
@@ -63,7 +126,7 @@ function* submit(directory) {
     throw new Error("File .restcoderrc is malformed. The language property is missing.");
   }
   var version = detectVersion(codeConfig.language, directory);
-  var processes = parseProcfile(directory);
+  var processes = helper.parseProcfile(directory);
   console.log("Packing source code...");
   var ignoreFile = "";
   try {
@@ -191,29 +254,7 @@ function _fixMessageColors(msg) {
   return msg;
 }
 
-function parseProcfile(directory) {
-  var procfile;
-  try {
-    procfile = fs.readFileSync(Path.join(directory, "Procfile"), 'utf8');
-  } catch (ignore) {
-    throw new Error("Procfile is missing!");
-  }
-  var processes = [];
-  procfile.split("\n").forEach(line => {
-    line = line.trim();
-    if (!line) {
-      return;
-    }
-    var split = line.split(":");
-    var name = split.shift();
-    var command = split.join(":");
-    processes.push({ name, command });
-  });
-  if (!processes.length) {
-    throw new Error("Procfile is empty");
-  }
-  return processes;
-}
+
 
 function detectVersion(language, directory) {
   let exec;

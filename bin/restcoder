@@ -3,40 +3,25 @@
 
 process.bin = process.title = 'restcoder';
 
-var prompt = require('prompt');
-var co = require('co');
-var updateNotifier = require('update-notifier');
-var pkg = require("../package.json");
-var program = require('commander');
-var _ = require('underscore');
-var inquirer = require("inquirer");
-var ConfigService = require("../services/ConfigService");
-var CodeService = require("../services/CodeService");
-var APIService = require("../services/APIService");
+const Path = require('path');
+const prompt = require('prompt');
+const events  = require('events');
+const co = require('co');
+const updateNotifier = require('update-notifier');
+const pkg = require("../package.json");
+const program = require('commander');
+const _ = require('underscore');
+const inquirer = require("inquirer");
+const ConfigService = require("../src/services/ConfigService");
+const CodeService = require("../src/services/CodeService");
+const APIService = require("../src/services/APIService");
+const StartService = require("../src/services/StartService");
+const helper = require("../src/services/helper");
 
-const supportedPlatforms = [
-  {name: 'Node.js', value: 'nodejs'},
-  {name: 'Python', value: 'python'},
-  {name: 'Ruby', value: 'ruby'},
-  {name: 'Java', value: 'java'},
-  {name: '.NET', value: 'dotnet'},
-];
-
-prompt.message = "";
-prompt.delimiter = "";
-
-
-function _prompt(questions) {
-  return new Promise((resolve) => {
-    inquirer.prompt(questions, function (answers) {
-      resolve(answers);
-    });
-  });
-}
 
 function _checkLoggedIn() {
   if (!ConfigService.isAuthenticated()) {
-    throw new Error("Your are not authenticated. Please use the 'login' command.");
+    throw new Error("Your are not authenticated. Please use the 'restcoder login' command.");
   }
 }
 
@@ -59,46 +44,13 @@ function _wrapCommand(fn) {
 
 program
   .version(pkg.version)
-  .command('init <problemId>')
+  .command('init <problemId> [directory]')
   .description('init source code in current directory')
-  .action(_wrapCommand(function*(problemId) {
-    _checkLoggedIn();
-    console.log("Initializing source code...");
-    const problem = yield APIService.getProblem(problemId);
+  .action(_wrapCommand(function*(problemId, directory) {
 
-    var settings = ConfigService.getSettings();
-    var answers = yield _prompt([{
-      type: "list",
-      name: "language",
-      default: settings.defaultLanguage,
-      message: "Choose language",
-      choices: supportedPlatforms
-    }]);
-    var language = answers.language;
-    settings.defaultLanguage = answers.language;
-    ConfigService.updateSettings(settings);
-    const selectServices = problem.runtime.services.select;
-    const pickedServices = {};
-    if (selectServices) {
-      const services = yield APIService.getServices();
-      const servicesMap = _.indexBy(services, 'id');
-      yield _.map(selectServices, (value, name) => function* () {
-        if (_.isArray(value)) {
-          var serviceAnswer = yield _prompt([{
-            type: "list",
-            name: "result",
-            message: "Choose " + name,
-            choices: value.map((item) => ({
-              name: `${servicesMap[item].description} (${servicesMap[item].version})`,
-              value: item
-            }))
-          }]);
-          pickedServices[name] = serviceAnswer.result;
-        }
-      });
-    }
-    yield CodeService.initCode(process.cwd(), problemId, language, pickedServices);
-    console.log("SUCCESS!".green);
+    _checkLoggedIn();
+    const directoryPath = Path.join(process.cwd(), directory || problem.slug);
+    yield CodeService.initCode(directoryPath, problemId);
   }));
 
 program
@@ -108,6 +60,16 @@ program
     _checkLoggedIn();
     yield CodeService.submit(process.cwd());
   }));
+
+
+program
+  .command('start')
+  .description('Start your application locally')
+  .action(function() {
+    const port = 5000;
+    StartService.start(port, process.cwd());
+
+  });
 
 
 program
