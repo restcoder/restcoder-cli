@@ -1,8 +1,8 @@
-"use strict";
+'use strict';
 
 const helper = require('./helper');
 const Path = require('path');
-const events  = require('events');
+const events = require('events');
 const _ = require('underscore');
 const fork = require('child_process').fork;
 const startProcesses = require('foreman/lib/proc').start;
@@ -12,15 +12,15 @@ display.wrapline = process.stdout.columns - display.padding - 7;
 display.trimline = 0;
 
 
-//Exports
+// Exports
 module.exports = {
   start
 };
 
-var emitter = new events.EventEmitter();
+const emitter = new events.EventEmitter();
 
 function _createProxy(port, size) {
-  var proxy = fork(Path.join(__dirname, 'proxy.js'), [], {
+  fork(Path.join(__dirname, 'proxy.js'), [], {
     env: {
       HOST: 'localhost',
       PORT: port,
@@ -58,10 +58,10 @@ function start(port, directory) {
 
   problemConfig.env.forEach((name) => {
     if (!process.env[name]) {
-      if (hasEnv) {
-        throw new Error(`Environmental variable "${name}" is not set. Please add it to the .env file.`)
+      if (envConfig) {
+        throw new Error(`Environmental variable "${name}" is not set. Please add it to the .env file.`);
       }
-      throw new Error(`Environmental variable "${name}" is not set. Did you forget to create an .env file?`)
+      throw new Error(`Environmental variable "${name}" is not set. Did you forget to create an .env file?`);
     }
   });
   if (problemConfig.env.length) {
@@ -70,7 +70,7 @@ function start(port, directory) {
       console.log(`${name}=${process.env[name]}`);
     });
   }
-  
+
   let webPort = port;
   if (problemConfig.instances.web > 1) {
     webPort++;

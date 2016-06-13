@@ -3,20 +3,16 @@
 
 process.bin = process.title = 'restcoder';
 
-const Path = require('path');
 const prompt = require('prompt');
-const events  = require('events');
 const co = require('co');
 const updateNotifier = require('update-notifier');
-const pkg = require("../package.json");
+const pkg = require('../package.json');
 const program = require('commander');
 const _ = require('underscore');
-const inquirer = require("inquirer");
-const ConfigService = require("../src/services/ConfigService");
-const CodeService = require("../src/services/CodeService");
-const APIService = require("../src/services/APIService");
-const StartService = require("../src/services/StartService");
-const helper = require("../src/services/helper");
+const ConfigService = require('../src/services/ConfigService');
+const CodeService = require('../src/services/CodeService');
+const APIService = require('../src/services/APIService');
+const StartService = require('../src/services/StartService');
 
 
 function _checkLoggedIn() {
@@ -27,13 +23,13 @@ function _checkLoggedIn() {
 
 function _wrapCommand(fn) {
   return function () {
-    var args = arguments;
+    const args = arguments;
     co(function*() {
-      var binded = Function.prototype.bind.apply(fn, _.flatten([null, args]));
+      const binded = Function.prototype.bind.apply(fn, _.flatten([null, args]));
       yield binded();
       process.exit(0);
     }).catch(e => {
-      console.log("ERR!".red, e.message);
+      console.log('ERR!'.red, e.message);
       if (process.env.RESTCODER_CLI_LOCAL_MODE) {
         console.log(e.stack);
       }
@@ -47,10 +43,8 @@ program
   .command('init <problemId> [directory]')
   .description('init source code in current directory')
   .action(_wrapCommand(function*(problemId, directory) {
-
     _checkLoggedIn();
-    const directoryPath = Path.join(process.cwd(), directory || problem.slug);
-    yield CodeService.initCode(directoryPath, problemId);
+    yield CodeService.initCode(problemId, directory);
   }));
 
 program
@@ -61,22 +55,19 @@ program
     yield CodeService.submit(process.cwd());
   }));
 
-
 program
   .command('start')
   .description('Start your application locally')
-  .action(function() {
+  .action(() => {
     const port = 5000;
     StartService.start(port, process.cwd());
-
   });
-
 
 program
   .command('login')
   .description('login with your username and password')
   .action(_wrapCommand(function*() {
-    var params = [{
+    const params = [{
       name: 'username',
       description: 'Your username:',
       required: true
@@ -87,31 +78,31 @@ program
       required: true
     }];
 
-    var bindedPrompt = prompt.get.bind(prompt, params);
-    var result;
+    const bindedPrompt = prompt.get.bind(prompt, params);
+    let result;
     try {
       result = yield bindedPrompt;
     } catch (err) {
-      if (err.message === "canceled") {
+      if (err.message === 'canceled') {
         process.exit();
       } else {
         throw err;
       }
     }
-    var data = yield APIService.login(result.username, result.password);
-    var settings = ConfigService.getSettings();
+    const data = yield APIService.login(result.username, result.password);
+    const settings = ConfigService.getSettings();
     settings.user = {
       username: result.username,
       token: data.token
     };
     ConfigService.updateSettings(settings);
-    console.log("Authenticated successfully");
+    console.log('Authenticated successfully');
   }));
 
 
-//unknown command
-//display help
-program.action(function () {
+// unknown command
+// display help
+program.action(() => {
   program.outputHelp();
 });
 
@@ -120,5 +111,5 @@ if (process.argv.length === 2) {
   program.outputHelp();
 }
 
-//check for update
+// check for update
 updateNotifier({ pkg, updateCheckInterval: 0 }).notify();

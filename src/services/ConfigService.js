@@ -1,36 +1,36 @@
 'use strict';
 
 
-var ini = require('ini');
-var fs = require('fs');
-var Path = require('path');
-var rcPath = Path.join(process.env.HOME || process.env.USERPROFILE, ".restcoderrc");
+const ini = require('ini');
+const fs = require('fs');
+const Path = require('path');
+const rcPath = Path.join(process.env.HOME || process.env.USERPROFILE, '.restcoderrc');
 
 module.exports = {
-    getSettings,
-    updateSettings,
-    isAuthenticated,
-    getToken
+  getSettings,
+  updateSettings,
+  isAuthenticated,
+  getToken
 };
 
 function getSettings() {
-    try {
-        return ini.parse(fs.readFileSync(rcPath, 'utf-8'));
-    } catch (ignore) {
-        return {};
-    }
+  try {
+    return ini.parse(fs.readFileSync(rcPath, 'utf-8'));
+  } catch (ignore) {
+    return {};
+  }
 }
 
 function updateSettings(settings) {
-    fs.writeFileSync(rcPath, ini.stringify(settings));
+  fs.writeFileSync(rcPath, ini.stringify(settings));
 }
 
 function isAuthenticated() {
-    var settings = getSettings();
-    return settings.user && settings.user.username && settings.user.token;
+  const settings = getSettings();
+  return settings.user && settings.user.username && settings.user.token;
 }
 
 function getToken() {
-    var settings = getSettings();
-    return settings.user.token;
+  const settings = getSettings();
+  return settings.user.token;
 }

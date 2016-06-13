@@ -1,40 +1,38 @@
-var http    = require('http');
-var htproxy = require('http-proxy');
+const http = require('http');
+const htproxy = require('http-proxy');
 
-var port = parseInt(process.env.PORT);
+const port = parseInt(process.env.PORT, 10);
 
-var upstream_host = process.env.UPSTREAM_HOST;
-var upstream_port = parseInt(process.env.UPSTREAM_PORT);
-var upstream_size = parseInt(process.env.UPSTREAM_SIZE);
+const upstreamHost = process.env.UPSTREAM_HOST;
+const upstreamPort = parseInt(process.env.UPSTREAM_PORT, 10);
+const upstreamSize = parseInt(process.env.UPSTREAM_SIZE, 10);
 
-var addresses = [];
-for(var i = 0; i < upstream_size; i++) {
+const addresses = [];
+for (let i = 0; i < upstreamSize; i++) {
   addresses.push({
-    host: upstream_host,
-    port: upstream_port + i,
+    host: upstreamHost,
+    port: upstreamPort + i,
     protocol: 'http',
   });
 }
 
 // Proxy
-var proxy = htproxy.createProxyServer();
+const proxy = htproxy.createProxyServer();
 
 // Hanle Error
-proxy.on('proxyError',function(err,req,res){
-  console.error("Proxy Error: ",err);
+proxy.on('proxyError', (err, req, res) => {
+  console.error('Proxy Error: ', err);
   res.writeHead(500);
-  res.write("Upstream Proxy Error");
+  res.write('Upstream Proxy Error');
   res.end();
 });
 
 // Main HTTP Server
-http.createServer(function (req, res) {
+http.createServer((req, res) => {
+  const target = addresses.shift();
 
-  var target = addresses.shift();
-
-  proxy.web(req, res, {target: target});
+  proxy.web(req, res, { target });
   proxy.on('error', () => {});
 
   addresses.push(target);
-
 }).listen(port);

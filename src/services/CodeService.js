@@ -1,36 +1,38 @@
 'use strict';
 
-const _ = require("underscore");
+const _ = require('underscore');
 const fs = require('fs');
 const Path = require('path');
 const mkdirp = require('mkdirp');
 const ignore = require('ignore');
+const inquirer = require('inquirer');
 const AdmZip = require('adm-zip');
 const io = require('socket.io-client');
-const ApiService = require("./APIService");
-const ConfigService = require("../services/ConfigService");
+const ApiService = require('./APIService');
+const ConfigService = require('./ConfigService');
 const helper = require('./helper');
+const APIService = require('./APIService');
 
-const SOCKET_URL = process.env.RESTCODER_CLI_LOCAL_MODE ? "http://localhost:3500/cli" : 'https://api.restcoder.com/cli';
+const SOCKET_URL = process.env.RESTCODER_CLI_LOCAL_MODE ? 'http://localhost:3500/cli' : 'https://api.restcoder.com/cli';
 const MAX_FILES = 100;
 const MAX_FILE_SIZE_KB = 100;
 
 
 const supportedPlatforms = [
-  {name: 'Node.js', value: 'nodejs'},
-  {name: 'Python', value: 'python'},
-  {name: 'Ruby', value: 'ruby'},
-  {name: 'Java', value: 'java'},
-  {name: '.NET', value: 'dotnet'},
+  { name: 'Node.js', value: 'nodejs' },
+  { name: 'Python', value: 'python' },
+  { name: 'Ruby', value: 'ruby' },
+  { name: 'Java', value: 'java' },
+  { name: '.NET', value: 'dotnet' },
 ];
 
-prompt.message = "";
-prompt.delimiter = "";
+prompt.message = '';
+prompt.delimiter = '';
 
 
 function _prompt(questions) {
   return new Promise((resolve) => {
-    inquirer.prompt(questions, function (answers) {
+    inquirer.prompt(questions, (answers) => {
       resolve(answers);
     });
   });
@@ -38,9 +40,9 @@ function _prompt(questions) {
 
 function _getFiles(dir, currentFiles) {
   currentFiles = currentFiles || [];
-  var files = fs.readdirSync(dir);
+  const files = fs.readdirSync(dir);
   files.forEach(fileName => {
-    var name = dir + '/' + fileName;
+    const name = dir + '/' + fileName;
     if (fs.statSync(name).isDirectory()) {
       _getFiles(name, currentFiles);
     } else {
@@ -50,28 +52,29 @@ function _getFiles(dir, currentFiles) {
   return currentFiles;
 }
 
-function* initCode(directory, problemId) {
-  if (!fs.existsSync(directory)){
-    fs.mkdirSync(directory);
-  }
-  var items = fs.readdirSync(directory);
-  if (items.length) {
-    throw new Error("Directory is not empty!");
-  }
-
-  console.log("Initializing source code...");
+function* initCode(problemId, directoryName) {
+  console.log('Initializing source code...');
   const problem = yield APIService.getProblem(problemId);
 
-  var settings = ConfigService.getSettings();
-  var answers = yield _prompt([{
-    type: "list",
-    name: "language",
+  const directory = Path.join(process.cwd(), directoryName || problem.slug);
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory);
+  }
+  const items = fs.readdirSync(directory);
+  if (items.length) {
+    throw new Error('Directory is not empty!');
+  }
+
+  const settings = ConfigService.getSettings();
+  const answers = yield _prompt([{
+    type: 'list',
+    name: 'language',
     default: settings.defaultLanguage,
-    message: "Choose language",
+    message: 'Choose language',
     choices: supportedPlatforms
   }]);
-  
-  var language = answers.language;
+
+  const language = answers.language;
   settings.defaultLanguage = answers.language;
   ConfigService.updateSettings(settings);
   const selectServices = problem.runtime.services.select;
@@ -79,12 +82,12 @@ function* initCode(directory, problemId) {
   if (selectServices) {
     const services = yield APIService.getServices();
     const servicesMap = _.indexBy(services, 'id');
-    yield _.map(selectServices, (value, name) => function* () {
+    yield _.map(selectServices, (value, name) => function*() {
       if (_.isArray(value)) {
-        var serviceAnswer = yield _prompt([{
-          type: "list",
-          name: "result",
-          message: "Choose " + name,
+        const serviceAnswer = yield _prompt([{
+          type: 'list',
+          name: 'result',
+          message: 'Choose ' + name,
           choices: value.map((item) => ({
             name: `${servicesMap[item].description} (${servicesMap[item].version})`,
             value: item
@@ -94,154 +97,159 @@ function* initCode(directory, problemId) {
       }
     });
   }
-  
-  var result = yield ApiService.getCodeTemplate(language);
+
+  const result = yield ApiService.getCodeTemplate(language);
   _.each(result.files, file => {
-    var fullPath = Path.join(directory, file.path);
+    const fullPath = Path.join(directory, file.path);
     mkdirp.sync(Path.dirname(fullPath));
     fs.writeFileSync(fullPath, file.content, 'utf8');
   });
-  var codeConfig = { problemId, language, services };
-  fs.writeFileSync(Path.join(directory, ".restcoderrc"), JSON.stringify(codeConfig, null, 4), 'utf8');
+  const codeConfig = { problemId, language, services: selectServices };
+  fs.writeFileSync(Path.join(directory, '.restcoderrc'), JSON.stringify(codeConfig, null, 4), 'utf8');
 
-  console.log("SUCCESS!".green);
+  console.log('SUCCESS!'.green);
 }
 
 function* submit(directory) {
-  var codeConfig;
+  let codeConfig;
   try {
-    codeConfig = fs.readFileSync(Path.join(directory, ".restcoderrc"), 'utf8');
-  } catch (ignore) {
-    throw new Error("Invalid directory. File .restcoderrc is missing.");
+    codeConfig = fs.readFileSync(Path.join(directory, '.restcoderrc'), 'utf8');
+  } catch (e) {
+    throw new Error('Invalid directory. File .restcoderrc is missing.');
   }
   try {
     codeConfig = JSON.parse(codeConfig);
-  } catch (ignore) {
-    throw new Error("File .restcoderrc is malformed.");
+  } catch (e) {
+    throw new Error('File .restcoderrc is malformed.');
   }
   if (!codeConfig.problemId) {
-    throw new Error("File .restcoderrc is malformed. The problemId property is missing.");
+    throw new Error('File .restcoderrc is malformed. The problemId property is missing.');
   }
   if (!codeConfig.language) {
-    throw new Error("File .restcoderrc is malformed. The language property is missing.");
+    throw new Error('File .restcoderrc is malformed. The language property is missing.');
   }
-  var version = detectVersion(codeConfig.language, directory);
-  var processes = helper.parseProcfile(directory);
-  console.log("Packing source code...");
-  var ignoreFile = "";
+  const version = detectVersion(codeConfig.language, directory);
+  const processes = helper.parseProcfile(directory);
+  console.log('Packing source code...');
+  let ignoreFile;
   try {
-    ignoreFile = fs.readFileSync(Path.join(directory, ".restcoderignore"), 'utf8');
-  } catch (ignore) {
-
+    ignoreFile = fs.readFileSync(Path.join(directory, '.restcoderignore'), 'utf8');
+  } catch (e) {
+    ignoreFile = '';
   }
-  var ig = ignore({}).addPattern(ignoreFile.split("\n"));
-  var files = _getFiles(directory).filter(ig.createFilter());
+  const ig = ignore({}).addPattern(ignoreFile.split('\n'));
+  const files = _getFiles(directory).filter(ig.createFilter());
   if (!files.length) {
-    throw new Error("0 files to upload");
+    throw new Error('0 files to upload');
   }
   console.log(`Found ${files.length} file(s)`);
   if (files.length > MAX_FILES) {
     throw new Error(`Cannot upload more than ${MAX_FILES} files`);
   }
-  var zip = new AdmZip();
+  const zip = new AdmZip();
   files.forEach(fullPath => {
-    var relativePath = fullPath.replace(directory, "").replace(/^[\/\\]/, "");
-    var stat = fs.statSync(fullPath);
+    const relativePath = fullPath.replace(directory, '').replace(/^[\/\\]/, '');
+    const stat = fs.statSync(fullPath);
     if (stat.size / 1024 > MAX_FILE_SIZE_KB) {
       throw new Error(`file ${fullPath} has size ${stat.size / 1024}KB. Max allowed size is ${MAX_FILE_SIZE_KB}KB.`);
     }
     zip.addFile(relativePath, fs.readFileSync(fullPath));
   });
-  console.log(_fixMessageColors("Packing source code... Success"));
+  console.log(_fixMessageColors('Packing source code... Success'));
 
-  var submission = {
+  const submission = {
     language: {
       name: codeConfig.language,
-      version: version
+      version
     },
-    processes: processes,
+    processes,
     services: codeConfig.services
   };
 
-  console.log("Submitting source code...");
-  var result = yield ApiService.submitCode(codeConfig.problemId, submission, zip.toBuffer());
-  console.log(_fixMessageColors("Submitting source code... Success"));
+  console.log('Submitting source code...');
+  const result = yield ApiService.submitCode(codeConfig.problemId, submission, zip.toBuffer());
+  console.log(_fixMessageColors('Submitting source code... Success'));
   console.log(('Problem: '.bold + result.problemName).yellow);
   console.log(('Language: '.bold + result.language + '@' + result.languageVersion).yellow);
   console.log(('Services: '.bold + result.usedServices).yellow);
 
-  console.log("Waiting for tester...");
-  var prefix = "tester: ".cyan;
+  console.log('Waiting for tester...');
+  const prefix = 'tester: '.cyan;
 
-  yield new Promise(function (resolve) {
-    var socket = io(SOCKET_URL + "?token=" + ConfigService.getToken());
-    socket.on("connect", function () {
-      socket.emit("join", { submissionId: result.submissionId });
+  yield new Promise((resolve) => {
+    const socket = io(SOCKET_URL + '?token=' + ConfigService.getToken());
+    let test;
+    socket.on('connect', () => {
+      socket.emit('join', { submissionId: result.submissionId });
     });
 
-    socket.on("progress", function (data) {
+    socket.on('progress', (data) => {
       switch (data.type) {
-        case "PREPARING":
-          console.log(prefix + "Preparing...");
+        case 'PREPARING':
+          console.log(prefix + 'Preparing...');
           break;
-        case "INSTALL":
-          console.log(prefix + "Installing dependencies...");
+        case 'INSTALL':
+          console.log(prefix + 'Installing dependencies...');
           break;
-        case "INSTALL_OK":
-          console.log(prefix + _fixMessageColors("Installing dependencies... Success"));
+        case 'INSTALL_OK':
+          console.log(prefix + _fixMessageColors('Installing dependencies... Success'));
           break;
-        case "INSTALL_LOG":
-          //TODO
+        case 'INSTALL_LOG':
+          // TODO
           break;
-        case "READY":
+        case 'READY':
           console.log(prefix + "Starting apps. Waiting for 'READY'...");
           break;
-        case "READY_OK":
+        case 'READY_OK':
           console.log(prefix + _fixMessageColors("Starting apps. Waiting for 'READY'... Success"));
           break;
-        case "READY_TIMEOUT":
+        case 'READY_TIMEOUT':
           console.log(prefix + "Timeout! Your application didn't write READY to stdout.".red);
-          console.log(prefix + "Result: " + "FAIL".red);
+          console.log(prefix + 'Result: ' + 'FAIL'.red);
           resolve();
           break;
-        case "BEFORE_START":
-          console.log(prefix + "Initializing unit tests...");
+        case 'BEFORE_START':
+          console.log(prefix + 'Initializing unit tests...');
           break;
-        case "START":
+        case 'START':
           console.log(prefix + `Running ${data.totalTests.toString().cyan} test(s)`);
           break;
-        case "TEST_RESULT":
-          var test = data.data;
+        case 'TEST_RESULT':
+          test = data.data;
           switch (test.result) {
-            case "PENDING":
-              console.log(prefix + test.name + ": running...");
+            case 'PENDING':
+              console.log(prefix + test.name + ': running...');
               break;
-            case "FAIL":
-              console.log(prefix + test.name + ": " + "FAIL".red);
+            case 'FAIL':
+              console.log(prefix + test.name + ': ' + 'FAIL'.red);
               console.log(prefix + `Reason: ${test.userErrorMessage}`.red);
               break;
-            case "PASS":
-              console.log(prefix + test.name + ": " + "PASS".green);
+            case 'PASS':
+              console.log(prefix + test.name + ': ' + 'PASS'.green);
+              break;
+            default:
               break;
           }
           break;
-        case "OPERATION_ERROR":
+        case 'OPERATION_ERROR':
           console.log(prefix + (`Error: ${data.msg} (ref: ${data.referId})`).red);
           if (data.stdout) {
-            console.log(prefix + `See stdout log: ` + data.stdout);
+            console.log(prefix + 'See stdout log: ' + data.stdout);
           }
           if (data.stderr) {
-            console.log(prefix + `See stderr log: ` + data.stderr);
+            console.log(prefix + 'See stderr log: ' + data.stderr);
           }
           resolve();
           break;
-        case "ERROR":
+        case 'ERROR':
           console.log(prefix + (`Internal Server Error (ref: ${data.referId})`).red);
           resolve();
           break;
-        case "END":
-          console.log(prefix + "Result: " + (data.passed ? "PASS".green : "FAIL".red));
+        case 'END':
+          console.log(prefix + 'Result: ' + (data.passed ? 'PASS'.green : 'FAIL'.red));
           resolve();
+          break;
+        default:
           break;
       }
     });
@@ -250,78 +258,74 @@ function* submit(directory) {
 
 
 function _fixMessageColors(msg) {
-  msg = msg.replace("Success", "Success".green);
+  msg = msg.replace('Success', 'Success'.green);
   return msg;
 }
 
 
-
 function detectVersion(language, directory) {
   let exec;
+  let packagejs;
+  let gemfile;
+  let runtime;
+  let properties;
   switch (language) {
-    case "nodejs":
-      let packagejs;
+    case 'nodejs':
       try {
-        packagejs = fs.readFileSync(Path.join(directory, "package.json"), 'utf8');
-      } catch (ignore) {
-        throw new Error("package.json is missing!");
+        packagejs = fs.readFileSync(Path.join(directory, 'package.json'), 'utf8');
+      } catch (e) {
+        throw new Error('package.json is missing!');
       }
       try {
         packagejs = JSON.parse(packagejs);
-      } catch (ignore) {
-        throw new Error("Cannot parse package.json. Invalid JSON object.");
+      } catch (e) {
+        throw new Error('Cannot parse package.json. Invalid JSON object.');
       }
       if (packagejs.engines && packagejs.engines.node) {
         return packagejs.engines.node;
       }
-      console.log("WARN!".yellow, "nodejs version is not defined in package.json. Latest version will be used.");
-      return "*";
-    case "ruby":
-      let gemfile;
+      console.log('WARN!'.yellow, 'nodejs version is not defined in package.json. Latest version will be used.');
+      return '*';
+    case 'ruby':
       try {
-        gemfile = fs.readFileSync(Path.join(directory, "gemfile"), 'utf8');
-      } catch (ignore) {
-        throw new Error("Gemfile is missing!");
+        gemfile = fs.readFileSync(Path.join(directory, 'gemfile'), 'utf8');
+      } catch (e) {
+        throw new Error('Gemfile is missing!');
       }
       exec = /^ruby '(.+?)'/m.exec(gemfile);
       if (exec) {
         return exec[1];
-      } else {
-        console.log("WARN!".yellow, "ruby version is not defined in Gemfile. Latest version will be used.");
       }
-      return "*";
-    case "python":
-      let runtime;
+      console.log('WARN!'.yellow, 'ruby version is not defined in Gemfile. Latest version will be used.');
+      return '*';
+    case 'python':
       try {
-        runtime = fs.readFileSync(Path.join(directory, "runtime.txt"), 'utf8');
-      } catch (ignore) {
-        throw new Error("runtime.txt is missing!");
+        runtime = fs.readFileSync(Path.join(directory, 'runtime.txt'), 'utf8');
+      } catch (e) {
+        throw new Error('runtime.txt is missing!');
       }
       exec = /^python-(.+?)$/m.exec(runtime);
       if (exec) {
         return exec[1];
-      } else {
-        console.log("WARN!".yellow, "python version is not defined in runtime.txt. 2.7 version will be used.");
       }
-      return "2.7";
-    case "java":
-      let properties;
+      console.log('WARN!'.yellow, 'python version is not defined in runtime.txt. 2.7 version will be used.');
+      return '2.7';
+    case 'java':
       try {
-        properties = fs.readFileSync(Path.join(directory, "system.properties"), 'utf8');
-      } catch (ignore) {
-        throw new Error("system.properties is missing!");
+        properties = fs.readFileSync(Path.join(directory, 'system.properties'), 'utf8');
+      } catch (e) {
+        throw new Error('system.properties is missing!');
       }
       exec = /^java\.runtime\.version=(.+?)$/m.exec(properties);
       if (exec) {
         return exec[1];
-      } else {
-        console.log("WARN!".yellow, "java version is not defined in system.properties. 1.8 version will be used.");
       }
-      return "1.8";
-    case "dotnet":
+      console.log('WARN!'.yellow, 'java version is not defined in system.properties. 1.8 version will be used.');
+      return '1.8';
+    case 'dotnet':
       return '*';
     default:
-      throw new Error("Unsupported language: " + language);
+      throw new Error('Unsupported language: ' + language);
   }
 }
 

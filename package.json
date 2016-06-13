@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "lint": "eslint -c .eslintrc src config || true",
-    "lint:fix": "eslint -c .eslintrc src config --fix || true"
+    "lint": "eslint -c .eslintrc src config bin || true",
+    "lint:fix": "eslint -c .eslintrc src config bin --fix || true"
   },
   "bin": {
     "restcoder": "bin/restcoder"
