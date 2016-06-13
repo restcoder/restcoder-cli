@@ -14,6 +14,9 @@ const CodeService = require('../src/services/CodeService');
 const APIService = require('../src/services/APIService');
 const StartService = require('../src/services/StartService');
 
+prompt.message = '';
+prompt.delimiter = '';
+
 
 function _checkLoggedIn() {
   if (!ConfigService.isAuthenticated()) {
@@ -21,13 +24,15 @@ function _checkLoggedIn() {
   }
 }
 
-function _wrapCommand(fn) {
+function _wrapCommand(fn, dontExit) {
   return function () {
     const args = arguments;
     co(function*() {
       const binded = Function.prototype.bind.apply(fn, _.flatten([null, args]));
       yield binded();
-      process.exit(0);
+      if (!dontExit) {
+        process.exit(0);
+      }
     }).catch(e => {
       console.log('ERR!'.red, e.message);
       if (process.env.RESTCODER_CLI_LOCAL_MODE) {
@@ -41,11 +46,26 @@ function _wrapCommand(fn) {
 program
   .version(pkg.version)
   .command('init <problemId> [directory]')
-  .description('init source code in current directory')
-  .action(_wrapCommand(function*(problemId, directory) {
+  .option('-c, --config-only', 'create only the restcoder.yaml config')
+  .description('Initialize a code template for the given problem.' +
+    ' If directory is not provided a new directory will be created.')
+  .action(_wrapCommand(function*(problemId, directory, options) {
     _checkLoggedIn();
-    yield CodeService.initCode(problemId, directory);
-  }));
+    yield CodeService.initCode(problemId, directory, options);
+  }))
+  .on('--help', () => {
+    console.log('  Examples:');
+    console.log();
+    console.log('  Initialize a template for the problem 1. It will create a directory `starter-hello-world`. ');
+    console.log('    $ restcoder init 1');
+    console.log();
+    console.log('  Initialize in the current directory.');
+    console.log('    $ restcoder init 1 .');
+    console.log();
+    console.log('  Initialize in a custom directory.');
+    console.log('    $ restcoder init 1 my-custom-dir');
+    console.log();
+  });
 
 program
   .command('submit')
@@ -57,11 +77,11 @@ program
 
 program
   .command('start')
+  .option('-p, --port <n>', 'the port to listen for the web process (default 5000)', parseInt)
   .description('Start your application locally')
-  .action(() => {
-    const port = 5000;
-    StartService.start(port, process.cwd());
-  });
+  .action(_wrapCommand(function*(options) {
+    StartService.start(options.port || 5000, process.cwd());
+  }, true));
 
 program
   .command('login')

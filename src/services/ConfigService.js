@@ -4,7 +4,8 @@
 const ini = require('ini');
 const fs = require('fs');
 const Path = require('path');
-const rcPath = Path.join(process.env.HOME || process.env.USERPROFILE, '.restcoderrc');
+const rcPath = Path.join(process.env.HOME || process.env.USERPROFILE,
+  '.restcoderrc' + (process.env.RESTCODER_CLI_LOCAL_MODE ? '-local' : ''));
 
 module.exports = {
   getSettings,

@@ -59,7 +59,7 @@ function start(port, directory) {
   problemConfig.env.forEach((name) => {
     if (!process.env[name]) {
       if (envConfig) {
-        throw new Error(`Environmental variable "${name}" is not set. Please add it to the .env file.`);
+        throw new Error(`Environmental variable "${name}" is not set. Please set it in the .env file.`);
       }
       throw new Error(`Environmental variable "${name}" is not set. Did you forget to create an .env file?`);
     }

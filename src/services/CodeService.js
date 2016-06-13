@@ -12,6 +12,7 @@ const ApiService = require('./APIService');
 const ConfigService = require('./ConfigService');
 const helper = require('./helper');
 const APIService = require('./APIService');
+const YAML = require('yamljs');
 
 const SOCKET_URL = process.env.RESTCODER_CLI_LOCAL_MODE ? 'http://localhost:3500/cli' : 'https://api.restcoder.com/cli';
 const MAX_FILES = 100;
@@ -25,9 +26,6 @@ const supportedPlatforms = [
   { name: 'Java', value: 'java' },
   { name: '.NET', value: 'dotnet' },
 ];
-
-prompt.message = '';
-prompt.delimiter = '';
 
 
 function _prompt(questions) {
@@ -52,17 +50,66 @@ function _getFiles(dir, currentFiles) {
   return currentFiles;
 }
 
-function* initCode(problemId, directoryName) {
+function _generateYamlConfig(problem, language, services, pickedServices) {
+  const serviceMap = _.indexBy(services, 'id');
+  const instances = _.map(problem.runtime.processes, (value, name) => `${name}: ${value.instances}`);
+  const baseServices = problem.runtime.services.base;
+  const env = [];
+  if (baseServices) {
+    _.each(baseServices, (id) => {
+      env.push('- ' + serviceMap[id].envName);
+    });
+  }
+  let servicesYaml = '';
+  if (Object.keys(pickedServices).length) {
+    const list = [];
+    _.each(pickedServices, (id, name) => {
+      env.push('- ' + serviceMap[id].envName);
+      list.push(`${name}: ${id}`);
+    });
+    servicesYaml = (
+`
+
+# your selected services
+services:
+  ${list.join('\n  ')}
+`);
+  }
+  return (
+`##########################################
+# This is a restcoder configuration file #
+# Edit on your own risk                  #
+##########################################
+
+# the problem to solve
+problemId: ${problem.id} # ${problem.name}
+
+# your target language
+language: ${language}
+${servicesYaml}
+# config for \`restcoder start\`
+instances:
+  ${instances.join('\n  ')}
+
+# list of variables required for \`restcoder start\`
+env:
+  ${env.join('\n  ')}
+`);
+}
+
+function* initCode(problemId, directoryName, opts) {
   console.log('Initializing source code...');
   const problem = yield APIService.getProblem(problemId);
-
+  const services = yield APIService.getServices();
   const directory = Path.join(process.cwd(), directoryName || problem.slug);
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory);
   }
-  const items = fs.readdirSync(directory);
-  if (items.length) {
-    throw new Error('Directory is not empty!');
+  if (!opts.configOnly) {
+    const items = fs.readdirSync(directory);
+    if (items.length) {
+      throw new Error(`Directory ${Path.basename(directory)} is not empty!`);
+    }
   }
 
   const settings = ConfigService.getSettings();
@@ -80,7 +127,6 @@ function* initCode(problemId, directoryName) {
   const selectServices = problem.runtime.services.select;
   const pickedServices = {};
   if (selectServices) {
-    const services = yield APIService.getServices();
     const servicesMap = _.indexBy(services, 'id');
     yield _.map(selectServices, (value, name) => function*() {
       if (_.isArray(value)) {
@@ -98,35 +144,50 @@ function* initCode(problemId, directoryName) {
     });
   }
 
-  const result = yield ApiService.getCodeTemplate(language);
-  _.each(result.files, file => {
-    const fullPath = Path.join(directory, file.path);
-    mkdirp.sync(Path.dirname(fullPath));
-    fs.writeFileSync(fullPath, file.content, 'utf8');
-  });
-  const codeConfig = { problemId, language, services: selectServices };
-  fs.writeFileSync(Path.join(directory, '.restcoderrc'), JSON.stringify(codeConfig, null, 4), 'utf8');
+  if (!opts.configOnly) {
+    const result = yield ApiService.getCodeTemplate(language);
+    _.each(result.files, file => {
+      const fullPath = Path.join(directory, file.path);
+      mkdirp.sync(Path.dirname(fullPath));
+      fs.writeFileSync(fullPath, file.content, 'utf8');
+    });
+  }
+  const ymalString = _generateYamlConfig(problem, language, services, pickedServices);
+  fs.writeFileSync(Path.join(directory, 'restcoder.yaml'), ymalString, 'utf8');
+  const env = (YAML.parse(ymalString).env || []).map((name) => `${name}=`);
+  fs.writeFileSync(Path.join(directory, '.env'), env.join('\n'), 'utf8');
 
-  console.log('SUCCESS!'.green);
+  const relativePath = Path.relative(process.cwd(), directory);
+
+  console.log('Code template has been initialized successfully!'.green);
+  if (env.length) {
+    console.log('Please update your settings in .env file!'.green);
+  }
+  console.log('Problem: ' + (problem.name.cyan));
+  if (relativePath) {
+    console.log('Change directory:    ' + (`$ cd ${relativePath}`.red));
+  }
+  console.log('Start your app:      ' + ('$ restcoder start'.red));
+  console.log('Submit to RestCoder: ' + ('$ restcoder submit'.red));
 }
 
 function* submit(directory) {
   let codeConfig;
   try {
-    codeConfig = fs.readFileSync(Path.join(directory, '.restcoderrc'), 'utf8');
+    codeConfig = fs.readFileSync(Path.join(directory, 'restcoder.yaml'), 'utf8');
   } catch (e) {
-    throw new Error('Invalid directory. File .restcoderrc is missing.');
+    throw new Error('Invalid directory. File restcoder.yaml is missing.');
   }
   try {
-    codeConfig = JSON.parse(codeConfig);
+    codeConfig = YAML.parse(codeConfig);
   } catch (e) {
-    throw new Error('File .restcoderrc is malformed.');
+    throw new Error('File restcoder.yaml is malformed.');
   }
   if (!codeConfig.problemId) {
-    throw new Error('File .restcoderrc is malformed. The problemId property is missing.');
+    throw new Error('File restcoder.yaml is malformed. The problemId property is missing.');
   }
   if (!codeConfig.language) {
-    throw new Error('File .restcoderrc is malformed. The language property is missing.');
+    throw new Error('File restcoder.yaml is malformed. The language property is missing.');
   }
   const version = detectVersion(codeConfig.language, directory);
   const processes = helper.parseProcfile(directory);
