@@ -29,7 +29,7 @@ function _createProxy(port, size) {
       UPSTREAM_SIZE: size
     }
   });
-  display.Alert('Starting Proxy Server [%s] %s -> (%d-%d)', 'web', port, port + 1, port + size);
+  display.Alert('Starting Proxy Server [%s] on port %s -> (%d-%d)', 'web', port, port + 1, port + size);
 }
 
 function start(port, directory) {
@@ -76,7 +76,7 @@ function start(port, directory) {
     webPort++;
     _createProxy(port, problemConfig.instances.web);
   } else {
-    display.Alert('Starting [web] ' + webPort);
+    display.Alert('Starting [web] on port ' + webPort);
   }
 
   startProcesses(processMap, problemConfig.instances, envConfig, webPort, emitter);

@@ -13,6 +13,9 @@ const ConfigService = require('../src/services/ConfigService');
 const CodeService = require('../src/services/CodeService');
 const APIService = require('../src/services/APIService');
 const StartService = require('../src/services/StartService');
+const TutorialService = require('../src/services/TutorialService');
+const TestService = require('../src/services/TestService');
+const EnvService = require('../src/services/EnvService');
 
 prompt.message = '';
 prompt.delimiter = '';
@@ -84,8 +87,26 @@ program
   }, true));
 
 program
+  .command('test')
+  .option('--host <n>', 'the host of your API (default localhost)')
+  .option('-p, --port <n>', 'the port of your API (default 5000)', parseInt)
+  .description('Test application locally using a test suite from Postman')
+  .action(_wrapCommand(function*(options) {
+    const url = `http://${options.host || 'localhost'}:${options.port || 5000}`;
+    TestService.test(url, process.cwd());
+  }));
+
+
+program
+  .command('set <name>')
+  .description('Set an environmental variable to .env file, name is a service name e.g. "postgres", "mysql", "mongo"')
+  .action(_wrapCommand(function*(name) {
+    yield EnvService.setVariable(process.cwd(), name);
+  }));
+
+program
   .command('login')
-  .description('login with your username and password')
+  .description('Login with your username and password')
   .action(_wrapCommand(function*() {
     const params = [{
       name: 'username',
@@ -117,6 +138,14 @@ program
     };
     ConfigService.updateSettings(settings);
     console.log('Authenticated successfully');
+  }));
+
+
+program
+  .command('tutorial')
+  .description('Initialize a tutorial problem')
+  .action(_wrapCommand(function*() {
+    yield TutorialService.init();
   }));
 
 

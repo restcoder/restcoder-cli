@@ -86,6 +86,9 @@ problemId: ${problem.id} # ${problem.name}
 
 # your target language
 language: ${language}
+
+# postman collection id used for local testing
+postmanCollectionId: ${problem.postmanCollectionId}
 ${servicesYaml}
 # config for \`restcoder start\`
 instances:
@@ -168,6 +171,7 @@ function* initCode(problemId, directoryName, opts) {
     console.log('Change directory:    ' + (`$ cd ${relativePath}`.red));
   }
   console.log('Start your app:      ' + ('$ restcoder start'.red));
+  console.log('Test your app:       ' + ('$ restcoder test'.red));
   console.log('Submit to RestCoder: ' + ('$ restcoder submit'.red));
 }
 
