@@ -1,6 +1,6 @@
 'use strict';
 
-const baseUrl = process.env.RESTCODER_CLI_LOCAL_MODE ? 'http://localhost:3500' : 'https://api.restcoder.com';
+const baseUrl = process.env.RESTCODER_API_URL || (process.env.RESTCODER_CLI_LOCAL_MODE ? 'http://localhost:3500' : 'https://api.restcoder.com');
 const request = require('superagent-promise')(require('superagent'), Promise);
 const ConfigService = require('./ConfigService');
 

@@ -14,7 +14,7 @@ const helper = require('./helper');
 const APIService = require('./APIService');
 const YAML = require('yamljs');
 
-const SOCKET_URL = process.env.RESTCODER_CLI_LOCAL_MODE ? 'http://localhost:3500/cli' : 'https://api.restcoder.com/cli';
+const SOCKET_URL = process.env.RESTCODER_SOCKET_URL || (process.env.RESTCODER_CLI_LOCAL_MODE ? 'http://localhost:3500/cli' : 'https://api.restcoder.com/cli');
 const MAX_FILES = 100;
 const MAX_FILE_SIZE_KB = 100;
 
