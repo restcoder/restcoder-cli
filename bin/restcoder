@@ -83,6 +83,9 @@ program
   .option('-p, --port <n>', 'the port to listen for the web process (default 5000)', parseInt)
   .description('Start your application locally')
   .action(_wrapCommand(function*(options) {
+    if (process.env.C9_HOSTNAME) {
+      console.log('Your code is running at \\033[01;34mhttp://' + process.env.C9_HOSTNAME);
+    }
     StartService.start(options.port || 5000, process.cwd());
   }, true));
 
