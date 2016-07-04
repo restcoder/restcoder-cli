@@ -108,12 +108,12 @@ function* initCode(problemId, directoryName, opts) {
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory);
   }
-  if (!opts.configOnly) {
-    const items = fs.readdirSync(directory);
-    if (items.length) {
-      throw new Error(`Directory ${Path.basename(directory)} is not empty!`);
-    }
-  }
+//  if (!opts.configOnly) {
+//    const items = fs.readdirSync(directory);
+//    if (items.length) {
+//      throw new Error(`Directory ${Path.basename(directory)} is not empty!`);
+//    }
+//  }
 
   const settings = ConfigService.getSettings();
   const answers = yield _prompt([{
