@@ -84,7 +84,7 @@ program
   .description('Start your application locally')
   .action(_wrapCommand(function*(options) {
     if (process.env.C9_HOSTNAME) {
-      console.log('Your code is running at \\033[01;34mhttp://' + process.env.C9_HOSTNAME);
+      console.log('Your code is running at \\033[01;34mhttp://' + process.env.C9_HOSTNAME + '\\033[00m.');
     }
     StartService.start(options.port || 5000, process.cwd());
   }, true));
