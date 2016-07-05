@@ -43,7 +43,10 @@ instances:
   web: 1
 `);
   fs.writeFileSync(Path.join(directory, 'restcoder.yaml'), sourceYaml, 'utf8');
+  const relativePath = Path.relative(process.cwd(), directory);
   console.log('Tutorial problem has been initialized successfully!'.green);
-  console.log('Type ' + '$ cd restcoder-tutorial'.red + ' to change your current working directory');
-  console.log('Type ' + ('$ restcoder start'.red) + ' to start a created application');
+  if (relativePath) {
+    console.log('Type ' + (`$ cd ${relativePath}`.red) + ' to change your current working directory');
+  }
+  console.log('Type ' + ('$ restcoder start'.red) + ' to start created application');
 }
