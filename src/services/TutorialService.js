@@ -7,8 +7,8 @@ module.exports = {
   init
 };
 
-function* init() {
-  const directory = Path.join(process.cwd(), 'restcoder-tutorial');
+function* init(directoryName) {
+  const directory = Path.join(process.cwd(), directoryName || 'restcoder-tutorial');
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory);
   }

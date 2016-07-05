@@ -145,10 +145,10 @@ program
 
 
 program
-  .command('tutorial')
+  .command('tutorial [directory]')
   .description('Initialize a tutorial problem')
-  .action(_wrapCommand(function*() {
-    yield TutorialService.init();
+  .action(_wrapCommand(function*(directory) {
+    yield TutorialService.init(directory);
   }));
 
 
